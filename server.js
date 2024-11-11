@@ -11,25 +11,24 @@ const os = require("os");
 dotenv.config();
 connectDB();
 
-// Check if the current process is the master process
-// if (cluster.isMaster) {
-//     // Get the number of available CPU cores
-//     const numCPUs = os.cpus().length;
+// Master Process Logic
+if (cluster.isMaster) {
+    const numCPUs = os.cpus().length;
+    console.log(`Master ${process.pid} is running`);
 
-//     console.log(`Master ${process.pid} is running`);
+    // Fork a worker for each CPU
+    for (let i = 0; i < numCPUs; i++) {
+        cluster.fork();
+    }
 
-//     // Fork workers (one for each CPU core)
-//     for (let i = 0; i < numCPUs; i++) {
-//         cluster.fork();
-//     }
-
-//     // Listen for dying workers and replace them
-//     cluster.on("exit", (worker, code, signal) => {
-//         console.log(`Worker ${worker.process.pid} died`);
-//         console.log("Starting a new worker...");
-//         cluster.fork();
-//     });
-// } else {
+    // Replace dead workers
+    cluster.on("exit", (worker, code, signal) => {
+        console.log(`Worker ${worker.process.pid} died`);
+        console.log("Starting a new worker...");
+        cluster.fork();
+    });
+} else {
+    // Worker Process Logic
     const app = express();
 
     app.use(cors());
@@ -38,6 +37,7 @@ connectDB();
     app.use(bodyParser.urlencoded({ extended: true }));
     app.use(bodyParser.json());
 
+    // Routes
     app.use("/api/v1/user", require("./routes/userRoutes"));
     app.use("/api/v1/shipping", require("./routes/shippingRoutes"));
     app.use("/api/v1/branch", require("./routes/branchRoutes"));
@@ -47,9 +47,10 @@ connectDB();
 
     const port = process.env.PORT || 5000;
 
+    // Start server
     app.listen(port, () => {
         console.log(
             `Worker ${process.pid} running server in ${process.env.NODE_ENV} mode on port ${port}`.bgCyan.white
         );
     });
-// }
+}
